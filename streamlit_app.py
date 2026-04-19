@@ -4,53 +4,61 @@ import requests
 from bs4 import BeautifulSoup
 import os
 
-# पेज की बनावट (UI)
-st.set_page_config(page_title="GVB Asset Manager", page_icon="☸️")
+st.set_page_config(page_title="GVB 2026 Reboot", layout="wide")
+st.title("☸️ ज्ञान विज्ञान ब्रह्मज्ञान: डिजिटल इकोसिस्टम")
 
-st.title("☸️ ज्ञान विज्ञान ब्रह्मज्ञान")
-st.subheader("2026 Reboot & Marketing Engine")
+# 1. API KEY CHECK
+API_KEY = st.secrets.get("AIzaSyDAAXpIJYYfsdryNciWHzDrnYg4KQGR8Jc")
+if not API_KEY:
+    st.error("❌ API Key नहीं मिली! कृपया Streamlit Settings > Secrets में जाकर चाबी डालें।")
+    st.stop()
 
-# Gemini API Key सुरक्षित रूप से लेना
-# (Streamlit के "Secrets" में इसे डालना होगा)
-API_KEY = st.secrets.get("GEMINI_API_KEY")
+# 2. LOAD DATA (Auto-Detect File)
+file_found = False
+for f in os.listdir():
+    if f.endswith('.csv'):
+        df = pd.read_csv(f)
+        file_found = f
+        break
 
-def get_content(url):
+if file_found:
+    total = len(df)
+    st.sidebar.success(f"✅ फाइल मिली: {file_found}")
+    st.sidebar.info(f"कुल पोस्ट: {total}")
+    
+    # पोस्ट चुनने का स्लाइडर
+    idx = st.number_input("पोस्ट नंबर (0 से {0})".format(total-1), 0, total-1, 0)
+    
+    # लिंक ढूँढने की कोशिश (चाहे नाम कुछ भी हो)
     try:
-        res = requests.get(url, timeout=10)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        body = soup.find(class_='post-body')
-        return body.get_text() if body else None
+        target_url = df.iloc[idx, 0] # पहले कॉलम को ही लिंक मान लो
+        if not str(target_url).startswith('http'):
+            target_url = df.iloc[idx, 1] # अगर पहले में नहीं तो दूसरे में देखो
     except:
-        return None
+        st.error("फाइल के अंदर लिंक नहीं मिल रहा है।")
+        st.stop()
 
-def ai_generate(old_text):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-    prompt = f"तुम 'ज्ञान विज्ञान ब्रह्मज्ञान' के मुख्य संपादक हो। इस पुराने लेख को 2026 के लिए अपडेट करो, फेसबुक/इंस्टा कैप्शन लिखो और इमेज प्रॉम्प्ट दो: {old_text[:3500]}"
-    
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    r = requests.post(url, json=payload)
-    return r.json()['candidates'][0]['content']['parts'][0]['text']
+    if st.button("🚀 रीबूट शुरू करें"):
+        st.write(f"🔗 **प्रोसेसिंग लिंक:** {target_url}")
+        
+        with st.spinner("AI आपकी पुरानी यादों को पढ़ रहा है..."):
+            try:
+                # स्क्रैपिंग
+                res = requests.get(target_url, timeout=10)
+                soup = BeautifulSoup(res.text, 'html.parser')
+                text = soup.get_text()[:4000] # शुरुआती 4000 अक्षर
 
-# डेटा लोड करना
-if os.path.exists('inventory_gyanvigyan.csv'):
-    df = pd.read_csv('inventory_gyanvigyan.csv')
-    
-    # इनपुट बॉक्स
-    post_idx = st.number_input("पोस्ट नंबर डालें (0 से " + str(len(df)-1) + ")", min_value=0, max_value=len(df)-1, step=1)
-    
-    if st.button("Generate Reboot Kit"):
-        target_url = df.iloc[post_idx]['Post_Link']
-        st.info(f"पढ़ा जा रहा है: {target_url}")
-        
-        content = get_content(target_url)
-        
-        if content:
-            with st.spinner("AI जादू कर रहा है..."):
-                result = ai_generate(content)
-                st.success("तैयार है!")
+                # AI Generation
+                gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+                prompt = f"तुम 'ज्ञान विज्ञान ब्रह्मज्ञान' के संपादक हो। इस लेख को 2026 के लिए अपडेट करो, सोशल मीडिया कैप्शन और इमेज प्रॉम्प्ट लिखो: {text}"
+                
+                r = requests.post(gen_url, json={"contents": [{"parts": [{"text": prompt}]}]})
+                result = r.json()['candidates'][0]['content']['parts'][0]['text']
+                
+                st.success("✨ काम पूरा हुआ!")
                 st.markdown("---")
-                st.markdown(result)
-        else:
-            st.error("पोस्ट का कंटेंट नहीं मिल सका।")
+                st.write(result)
+            except Exception as e:
+                st.error(f"कुछ गड़बड़ हुई: {e}")
 else:
-    st.error("inventory_gyanvigyan.csv फाइल नहीं मिली। कृपया इसे अपलोड करें।")
+    st.warning("⚠️ GitHub पर कोई भी .csv फाइल नहीं मिली। कृपया Bolginventory.csv अपलोड करें।")
