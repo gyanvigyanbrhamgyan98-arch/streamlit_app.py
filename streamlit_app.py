@@ -12,77 +12,71 @@ API_KEY = "AIzaSyDAAXpIJYYfsdryNciWHzDrnYg4KQGR8Jc"
 
 def get_content(url):
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
         res = requests.get(url, headers=headers, timeout=15)
         res.raise_for_status()
         soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # 1. सबसे पहले मुख्य लेख ढूँढें
         article = soup.find(class_='post-body') or soup.find('article') or soup.find(class_='entry-content')
-        
         if article:
             return article.get_text(separator="\n").strip()
-        
-        # 2. अगर मुख्य लेख न मिले, तो सारे पैराग्राफ्स का टेक्स्ट उठा लें
         p_text = "\n".join([p.get_text() for p in soup.find_all('p')])
-        if len(p_text) > 100:
-            return p_text
-            
-        return None
-    except Exception as e:
+        return p_text if len(p_text) > 100 else None
+    except:
         return None
 
+# --- यह है वो हिस्सा जो आपको अपडेट करना था ---
 def ai_generate(old_text):
-    # मॉडल का सबसे स्टेबल URL
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+    if not old_text or len(old_text) < 50:
+        return "पुराना लेख पढ़ने में समस्या आई।"
+
+    # v1 (Stable) URL
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
     
     prompt = f"""
     तुम 'ज्ञान विज्ञान ब्रह्मज्ञान' के संपादक हो। 
-    नीचे दिए गए पुराने लेख को 2026 के हिसाब से पूरी तरह दोबारा (Rewrite) लिखो।
-    इसे वैज्ञानिक और आध्यात्मिक रूप से गहरा बनाओ। 
-    अंत में 'Trilokinath' स्टाइल इमेज प्रॉम्प्ट और सोशल मीडिया कैप्शन भी दो।
-    
+    इस पुराने लेख को 2026 के लिए पूरी तरह 'री-राइट' (Rewrite) करो। 
+    इसे आध्यात्मिक, वैज्ञानिक और प्रभावशाली बनाओ। 
+    अंत में एक इमेज प्रॉम्प्ट और सोशल मीडिया कैप्शन दो।
     लेख: {old_text[:3500]}
     """
     
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
     try:
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=payload, timeout=25)
         data = response.json()
-        if 'candidates' in data:
+        
+        if 'candidates' in data and len(data['candidates']) > 0:
             return data['candidates'][0]['content']['parts'][0]['text']
-        return "AI जवाब नहीं दे पाया। कृपया दोबारा बटन दबाएँ।"
-    except:
-        return "AI सर्वर से संपर्क नहीं हो सका।"
+        elif 'error' in data:
+            return f"API एरर: {data['error']['message']}"
+        else:
+            return f"जवाब नहीं मिला। डेटा चेक करें: {str(data)[:100]}"
+    except Exception as e:
+        return f"कनेक्शन एरर: {str(e)}"
 
-# --- डेटा लोड करना ---
+# --- डेटा लोडिंग और बटन ---
 for f in os.listdir():
     if f.endswith('.csv'):
         df = pd.read_csv(f)
         total = len(df)
         st.sidebar.success(f"कुल {total} लेख मिले")
-        
         idx = st.number_input("लेख नंबर चुनें", 0, total-1, 0)
         
-        # लिंक ढूंढना
         row = df.iloc[idx]
         target_url = next((val for val in row if str(val).startswith('http')), None)
 
         if st.button("🚀 2026 Reboot शुरू करें"):
             if target_url:
-                st.info(f"🔗 लिंक मिला: {target_url}")
-                with st.spinner("पुराना लेख पढ़कर उसे दोबारा लिखा जा रहा है..."):
+                with st.spinner("पुराना लेख पढ़कर री-राइट किया जा रहा है..."):
                     content = get_content(target_url)
-                    
                     if content:
-                        # अब यहाँ असली री-राइट होगा
                         result = ai_generate(content)
                         st.markdown("---")
                         st.subheader("✨ नया लेख (Rebooted Version):")
                         st.write(result)
                     else:
-                        st.error("वेबसाइट से लेख नहीं मिल सका। शायद लिंक गलत है।")
+                        st.error("वेबसाइट से लेख नहीं मिल सका।")
             else:
-                st.error("इस नंबर पर कोई लिंक नहीं मिला।")
+                st.error("लिंक नहीं मिला।")
         break
