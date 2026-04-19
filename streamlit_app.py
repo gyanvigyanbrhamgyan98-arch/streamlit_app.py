@@ -1,17 +1,16 @@
 import streamlit as st
+import streamlit as st
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import os
 
-st.set_page_config(page_title="GVB 2026 Reboot", layout="wide")
-st.title("☸️ ज्ञान विज्ञान ब्रह्मज्ञान: डिजिटल इकोसिस्टम")
+# सीधे यहाँ अपनी असली चाबी पेस्ट करें
+API_KEY = "AIzaSyDAAXpIJYYfsdryNciWHzDrnYg4KQGR8Jc"
 
-# 1. API KEY CHECK
-API_KEY = st.secrets.get("AIzaSyDAAXpIJYYfsdryNciWHzDrnYg4KQGR8Jc")
-if not API_KEY:
-    st.error("❌ API Key नहीं मिली! कृपया Streamlit Settings > Secrets में जाकर चाबी डालें।")
-    st.stop()
+st.set_page_config(page_title="GVB 2026 Reboot", layout="wide")
+st.title("☸️ ज्ञान विज्ञान ब्रह्मज्ञान")
+
 
 # 2. LOAD DATA (Auto-Detect File)
 file_found = False
